@@ -1,3 +1,4 @@
+
 # Lab10 实验报告：为 Lunch Tray 添加导航
 
 ## 1. Compose Navigation 中 NavController、NavHost 和 composable() 的关系简述
@@ -70,5 +71,3 @@
 4. **问题：路由名称和枚举名称不一致，运行时崩溃**
    - 原因：路由字符串拼写错误。
    - 解决：统一使用 `LunchTrayScreen.xxx.name` 作为路由，避免硬编码字符串。
-
----
