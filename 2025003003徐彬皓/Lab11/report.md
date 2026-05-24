@@ -1,73 +1,155 @@
 
-# Lab10 实验报告：为 Lunch Tray 添加导航
+# Lab11 Sports 自适应布局实验报告
 
-## 1. Compose Navigation 中 NavController、NavHost 和 composable() 的关系简述
+## 1. WindowSizeClass 概念简介及 WindowWidthSizeClass 三种宽度类别
 
-- **NavController**：导航控制器，负责管理导航堆栈、处理页面跳转和返回逻辑，是整个导航系统的“大脑”。
-- **NavHost**：导航宿主，是页面内容的容器，负责在屏幕上显示当前路由对应的页面，由 NavController 控制切换。
-- **composable()**：NavHost 内部的路由声明函数，用于注册每一个页面及其对应的 Composable 界面，定义“路由名称 → 页面内容”的映射关系。
+### WindowSizeClass 概念
+`WindowSizeClass` 是 Jetpack 提供的**窗口尺寸分类工具**，用于在运行时根据屏幕宽度/高度把设备分成不同尺寸类别，从而实现**响应式布局**：同一套代码自动适配手机、平板、折叠屏、桌面设备。
 
-三者关系：**NavController 控制 NavHost，NavHost 通过 composable() 注册并渲染不同页面**，共同完成多页面导航。
+### WindowWidthSizeClass 三种宽度类别
+- **Compact（紧凑）**：宽度 < 600dp  
+  适用：**手机竖屏**。
+- **Medium（中等）**：600dp ≤ 宽度 < 840dp  
+  适用：**手机横屏、小平板**。
+- **Expanded（展开）**：宽度 ≥ 840dp  
+  适用：**大屏平板、折叠屏展开态、桌面设备**。
 
-## 2. LunchTrayScreen 枚举类的设计说明
+在本项目中：
+- Compact / Medium → `ListOnly` 模式（单页）
+- Expanded → `ListAndDetail` 模式（双面板）
 
-本次实验定义了 `LunchTrayScreen` 枚举类，包含 Start、Entree、SideDish、Accompaniment、Checkout 五个页面，并为每个页面绑定对应的标题资源 ID。
+---
 
-选择**枚举而非直接字符串**的原因：
-1. **编译期安全**：枚举在编译时校验，避免字符串拼写错误；裸字符串写错会运行时崩溃。
-2. **集中管理**：所有页面名称、标题资源统一放在一处，便于维护。
-3. **语义清晰**：使用 `LunchTrayScreen.Entree.name` 比直接写 `"Entree"` 可读性更强。
-4. **扩展性好**：新增页面只需添加枚举项，无需修改大量字符串常量。
+## 2. SportsContentType 枚举的设计思路
 
-## 3. LunchTrayAppBar 的设计思路
+### 设计思路
+页面内容形态由**屏幕宽度**决定：
+- 小屏空间有限：只能**单页展示列表或详情**。
+- 大屏空间充足：可以**列表+详情并排**，提升效率、减少跳转。
 
-`LunchTrayAppBar` 是一个可复用的顶部导航栏组件，核心设计如下：
+### 为什么使用 `ListOnly` 和 `ListAndDetail` 两种类型
+- **覆盖主流设备形态**：手机使用 `ListOnly`，平板/大屏使用 `ListAndDetail`。
+- **逻辑清晰、易维护**：UI 分支只有两条，ViewModel 只需控制“是否显示详情页”。
+- **避免过度设计**：无需为 Compact/Medium/Expanded 各做一套，降低维护成本。
 
-1. **动态标题**：根据当前页面 `currentScreen`，通过 `stringResource` 显示对应页面标题。
-2. **返回按钮**：使用箭头图标，点击调用 `navigateUp()` 返回上一页。
-3. **显示条件**：
-   - 当 `navController.previousBackStackEntry != null` 时显示返回按钮；
-   - Start 页面无前置页面，不显示返回按钮，符合用户直觉。
-4. **样式统一**：使用 Material 3 主题配色，保持界面一致性。
+---
 
-## 4. 导航流程设计说明（含返回堆栈管理）
+## 3. SportsListAndDetails 的布局设计说明
 
-### 导航流程
-- Start → Entree → SideDish → Accompaniment → Checkout
-- 任意页面点击 Cancel → 回到 Start 并清空订单
-- Checkout 点击 Submit → 回到 Start 并重置订单
+### 布局结构
+大屏时使用 `Row` 水平排列：
+```kotlin
+Row {
+    SportsList( modifier = Modifier.weight(2f) )
+    SportsDetail( modifier = Modifier.weight(3f) )
+}
+```
 
-### 返回堆栈管理关键设计
-1. **进入点餐流程时弹出 Start**
-   ```kotlin
-   navController.navigate(Entree) {
-       popUpTo(Start) { inclusive = true }
-   }
-   ```
-   原因：用户从 Start 进入点餐流程后，**按系统返回键应直接退出应用**，而非回到空白的 Start 页，符合常规 App 体验。
+### 比例分配理由（2f : 3f）
+- **列表区（2 份）**：作为导航入口，不需要太宽，保证可浏览即可。
+- **详情区（3 份）**：内容区（图文、长文本）需要更大空间保证可读性。
+- **视觉平衡**：列表偏窄、详情偏宽，符合用户“左导航、右内容”的阅读习惯。
+- **适配大屏设备**：比例固定，不同大屏宽度下都能保持合理分区。
 
-2. **Cancel/Submit 时清空整个堆栈返回 Start**
-   ```kotlin
-   navController.navigate(Start) {
-       popUpTo(startDestinationId) { inclusive = true }
-   }
-   ```
-   原因：取消或提交订单后，应**重置整个点餐流程**，返回初始状态，避免返回堆栈残留旧页面。
+---
 
-## 5. 实验中遇到的问题与解决过程
+## 4. SportsAppBar 在大屏/小屏下行为差异的设计考虑
 
-1. **问题：按返回键会回到 Start 页面，而非退出应用**
-   - 原因：Start 页面仍在返回堆栈中。
-   - 解决：从 Start 跳转到 Entree 时，使用 `popUpTo(Start) { inclusive = true }` 将 Start 从堆栈中移除。
+### 小屏（Compact/Medium）
+- 标题：根据当前页面状态显示“列表页”或“详情页”。
+- 返回按钮：仅在详情页显示，点击返回列表页。
+- 逻辑：小屏为**栈式导航**，需要页面跳转与返回。
 
-2. **问题：Cancel 后订单状态未清空，再次点餐会保留旧选择**
-   - 原因：仅导航返回 Start，未调用 ViewModel 重置订单。
-   - 解决：封装 `cancelAndReset` 函数，取消时同时调用 `viewModel.resetOrder()`。
+### 大屏（Expanded）
+- 标题：固定显示“Sports”或“列表页”，不随选中项变化。
+- 返回按钮：始终隐藏。
+- 逻辑：大屏为**双面板同屏**，无需页面跳转，避免用户困惑。
 
-3. **问题：返回按钮在 Start 页面也显示**
-   - 原因：判断条件错误。
-   - 解决：使用 `navController.previousBackStackEntry != null` 判断是否显示返回按钮，Start 页面无前置页面，不显示。
+---
 
-4. **问题：路由名称和枚举名称不一致，运行时崩溃**
-   - 原因：路由字符串拼写错误。
-   - 解决：统一使用 `LunchTrayScreen.xxx.name` 作为路由，避免硬编码字符串。
+## 5. 返回键的处理策略：小屏和大屏模式下的差异
+
+### 小屏模式（ListOnly）
+- 列表页：按返回键直接退出应用。
+- 详情页：按返回键回到列表页。
+- 实现：通过 `BackHandler` 拦截返回事件，调用 ViewModel 导航回列表页。
+
+### 大屏模式（ListAndDetails）
+- 行为：按返回键直接退出整个 Activity。
+- 实现：在 `SportsListAndDetails` 外层添加 `BackHandler`，直接调用 `onBackPressed()` 或 `finish()`。
+- 原因：大屏模式下列表与详情同屏显示，无页面栈，按返回键应直接退出应用，而非回到某个“上一页”。
+
+---
+
+## 6. 实验中遇到的问题与解决过程
+
+### 问题 1：大屏模式下按返回键无法退出 Activity
+- 现象：平板双面板模式下，按系统返回键无反应，或仍停留在应用内。
+- 原因：未在 `SportsListAndDetails` 中添加 `BackHandler`，返回事件透传给 Activity 时，默认行为不符合题目要求。
+- 解决：在 `SportsListAndDetails` 外层添加 `BackHandler`，直接调用 `onBackPressed()` 或 `finish()`，确保按返回键直接退出 Activity。
+
+### 问题 2：大屏切换运动后，标题错误显示为“详情页”
+- 现象：平板选中运动后，TopAppBar 标题变为详情页。
+- 原因：标题逻辑依赖 `isShowingListPage`，大屏下该状态被误更新。
+- 解决：大屏模式强制显示列表页标题，忽略页面状态。
+
+### 问题 3：大屏 Row 比例不合理，详情区内容拥挤
+- 现象：大屏列表过宽、详情过窄，文字排版拥挤。
+- 原因：初始使用 1:1 或 1:2 比例，不符合阅读优先级。
+- 解决：调整比例为 2:3，优先保证详情区空间。
+
+### 问题 4：手机横屏（Medium）错误进入双面板模式
+- 现象：手机横屏（600dp+）布局错乱，误展示 ListAndDetail。
+- 原因：WindowWidthSizeClass 判断逻辑错误，将 Medium 归为 Expanded。
+- 解决：严格区分尺寸类别，Compact/Medium 使用 ListOnly，Expanded 使用 ListAndDetail。
+```
+
+---
+
+## 二、大屏返回键退出 Activity 的代码修改
+
+在你的 `SportsListAndDetails` 函数里加上 `BackHandler`：
+
+```kotlin
+@Composable
+fun SportsListAndDetails(
+    sports: List<Sport>,
+    selectedSport: Sport?,
+    onSportSelected: (Sport) -> Unit,
+    onBackPressed: () -> Unit // 新增
+) {
+    // 关键：给整个大屏布局加上返回处理
+    BackHandler {
+        onBackPressed() // 调用后退出 Activity
+    }
+
+    Row {
+        SportsList(
+            sports = sports,
+            selectedSport = selectedSport,
+            onSportSelected = onSportSelected,
+            modifier = Modifier.weight(2f)
+        )
+        if (selectedSport != null) {
+            SportsDetail(
+                sport = selectedSport,
+                modifier = Modifier.weight(3f)
+            )
+        }
+    }
+}
+```
+
+在调用处传入 `onBackPressed`：
+
+```kotlin
+SportsListAndDetails(
+    sports = sports,
+    selectedSport = selectedSport,
+    onSportSelected = { viewModel.selectSport(it) },
+    onBackPressed = { activity?.finish() } // 这里直接 finish 掉 Activity
+)
+```
+
+---
+
