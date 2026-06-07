@@ -1,106 +1,92 @@
-package com.example.bookshelf.ui
+package com.example.bookshelf.ui.theme
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.example.bookshelf.BookshelfApplication
 import com.example.bookshelf.data.BooksRepository
 import com.example.bookshelf.model.Book
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.io.IOException
 
-/**
- * UI 状态：加载中、加载成功、加载失败
- */
 sealed interface BookshelfUiState {
+
     data object Loading : BookshelfUiState
 
     data class Success(
         val books: List<Book>,
-        val selectedBook: Book? = null,
+        val selectedBook: Book? = null
     ) : BookshelfUiState
 
     data class Error(
-        val message: String,
+        val message: String
     ) : BookshelfUiState
 }
 
-/**
- * ViewModel：管理书架数据与 UI 状态
- */
 class BookshelfViewModel(
-    private val booksRepository: BooksRepository,
+    private val booksRepository: BooksRepository
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow<BookshelfUiState>(BookshelfUiState.Loading)
-    val uiState: StateFlow<BookshelfUiState> = _uiState.asStateFlow()
+    var uiState: BookshelfUiState by mutableStateOf(BookshelfUiState.Loading)
+        private set
 
     init {
         getBooks()
     }
 
-    /**
-     * 从 Repository 获取书籍列表
-     */
     fun getBooks() {
         viewModelScope.launch {
-            _uiState.value = BookshelfUiState.Loading
-            try {
+            uiState = BookshelfUiState.Loading
+
+            uiState = try {
                 val books = booksRepository.getBooks()
-                _uiState.value = BookshelfUiState.Success(books = books)
-            } catch (e: IOException) {
-                _uiState.value = BookshelfUiState.Error(
-                    message = "网络请求失败：${e.message}"
-                )
+
+                if (books.isEmpty()) {
+                    BookshelfUiState.Error("没有获取到书架数据")
+                } else {
+                    BookshelfUiState.Success(books = books)
+                }
             } catch (e: Exception) {
-                _uiState.value = BookshelfUiState.Error(
-                    message = "加载失败：${e.message}"
+                BookshelfUiState.Error(
+                    message = e.message ?: "加载失败，请检查网络连接"
                 )
             }
         }
     }
 
-    /**
-     * 点按条目时显示详情
-     */
     fun selectBook(book: Book) {
-        _uiState.update { currentState ->
-            if (currentState is BookshelfUiState.Success) {
-                currentState.copy(selectedBook = book)
-            } else {
-                currentState
-            }
+        val currentState = uiState
+
+        if (currentState is BookshelfUiState.Success) {
+            uiState = currentState.copy(
+                selectedBook = book
+            )
         }
     }
 
-    /**
-     * 关闭详情弹窗
-     */
-    fun dismissDetail() {
-        _uiState.update { currentState ->
-            if (currentState is BookshelfUiState.Success) {
-                currentState.copy(selectedBook = null)
-            } else {
-                currentState
-            }
+    fun closeBookDetail() {
+        val currentState = uiState
+
+        if (currentState is BookshelfUiState.Success) {
+            uiState = currentState.copy(
+                selectedBook = null
+            )
         }
     }
-}
 
-/**
- * ViewModel 工厂，用于注入 Repository
- */
-class BookshelfViewModelFactory(
-    private val booksRepository: BooksRepository,
-) : ViewModelProvider.Factory {
-    @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(BookshelfViewModel::class.java)) {
-            return BookshelfViewModel(booksRepository) as T
+    companion object {
+        val Factory: ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                val application = this[APPLICATION_KEY] as BookshelfApplication
+                BookshelfViewModel(
+                    booksRepository = application.container.booksRepository
+                )
+            }
         }
-        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
