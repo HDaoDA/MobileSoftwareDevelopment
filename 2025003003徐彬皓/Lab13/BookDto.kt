@@ -1,10 +1,10 @@
-package com.example.bookshelf.model
+package com.example.bookshelf.network
 
+import com.example.bookshelf.model.Book
 import com.google.gson.annotations.SerializedName
 
 data class BookDto(
     val id: String = "",
-
     @SerializedName("img_src")
     val imgSrc: String = ""
 )
@@ -12,7 +12,7 @@ data class BookDto(
 fun BookDto.asExternalModel(): Book {
     return Book(
         id = id,
-        title = "Book #$id",
-        coverUrl = imgSrc
+        coverUrl = imgSrc,
+        title = "Book $id"
     )
 }

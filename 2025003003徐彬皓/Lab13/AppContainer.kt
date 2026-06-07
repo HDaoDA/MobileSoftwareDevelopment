@@ -1,26 +1,23 @@
-package com.example.bookshelf.data
+package com.example.bookshelf
 
-import com.example.bookshelf.network.ApiConfig
+import com.example.bookshelf.data.BooksRepository
+import com.example.bookshelf.data.NetworkBooksRepository
+import com.example.bookshelf.network.BASE_URL
 import com.example.bookshelf.network.BookshelfApiService
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
-interface AppContainer {
-    val booksRepository: BooksRepository
-}
-
-class DefaultAppContainer : AppContainer {
-
-    private val retrofit: Retrofit = Retrofit.Builder()
-        .baseUrl(ApiConfig.BASE_URL)
+class AppContainer {
+    private val retrofit = Retrofit.Builder()
+        .baseUrl(BASE_URL)
         .addConverterFactory(GsonConverterFactory.create())
         .build()
 
-    private val retrofitService: BookshelfApiService by lazy {
+    private val bookshelfApiService: BookshelfApiService by lazy {
         retrofit.create(BookshelfApiService::class.java)
     }
 
-    override val booksRepository: BooksRepository by lazy {
-        NetworkBooksRepository(retrofitService)
+    val booksRepository: BooksRepository by lazy {
+        NetworkBooksRepository(bookshelfApiService)
     }
 }

@@ -1,92 +1,59 @@
-package com.example.bookshelf.ui.theme
+package com.example.bookshelf.ui
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.example.bookshelf.BookshelfApplication
+import com.example.bookshelf.AppContainer
 import com.example.bookshelf.data.BooksRepository
 import com.example.bookshelf.model.Book
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 sealed interface BookshelfUiState {
-
     data object Loading : BookshelfUiState
-
-    data class Success(
-        val books: List<Book>,
-        val selectedBook: Book? = null
-    ) : BookshelfUiState
-
-    data class Error(
-        val message: String
-    ) : BookshelfUiState
+    data class Success(val books: List<Book>) : BookshelfUiState
+    data class Error(val message: String) : BookshelfUiState
 }
 
-class BookshelfViewModel(
-    private val booksRepository: BooksRepository
-) : ViewModel() {
+class BookshelfViewModel(private val booksRepository: BooksRepository) : ViewModel() {
+    private val _uiState = MutableStateFlow<BookshelfUiState>(BookshelfUiState.Loading)
+    val uiState: StateFlow<BookshelfUiState> = _uiState
 
-    var uiState: BookshelfUiState by mutableStateOf(BookshelfUiState.Loading)
-        private set
+    private var _selectedBook: Book? = null
+    val selectedBook: Book? get() = _selectedBook
 
     init {
-        getBooks()
+        loadBooks()
     }
 
-    fun getBooks() {
+    fun loadBooks() {
         viewModelScope.launch {
-            uiState = BookshelfUiState.Loading
-
-            uiState = try {
+            _uiState.value = BookshelfUiState.Loading
+            try {
                 val books = booksRepository.getBooks()
-
-                if (books.isEmpty()) {
-                    BookshelfUiState.Error("没有获取到书架数据")
-                } else {
-                    BookshelfUiState.Success(books = books)
-                }
+                _uiState.value = BookshelfUiState.Success(books)
             } catch (e: Exception) {
-                BookshelfUiState.Error(
-                    message = e.message ?: "加载失败，请检查网络连接"
-                )
+                _uiState.value = BookshelfUiState.Error(e.message ?: "Unknown error")
             }
         }
     }
 
     fun selectBook(book: Book) {
-        val currentState = uiState
-
-        if (currentState is BookshelfUiState.Success) {
-            uiState = currentState.copy(
-                selectedBook = book
-            )
-        }
+        _selectedBook = book
     }
 
-    fun closeBookDetail() {
-        val currentState = uiState
-
-        if (currentState is BookshelfUiState.Success) {
-            uiState = currentState.copy(
-                selectedBook = null
-            )
-        }
+    fun dismissBookDetail() {
+        _selectedBook = null
     }
 
-    companion object {
-        val Factory: ViewModelProvider.Factory = viewModelFactory {
-            initializer {
-                val application = this[APPLICATION_KEY] as BookshelfApplication
-                BookshelfViewModel(
-                    booksRepository = application.container.booksRepository
-                )
+    class Factory(private val appContainer: AppContainer) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            if (modelClass.isAssignableFrom(BookshelfViewModel::class.java)) {
+                return BookshelfViewModel(appContainer.booksRepository) as T
             }
+            throw IllegalArgumentException("Unknown ViewModel class")
         }
     }
 }
