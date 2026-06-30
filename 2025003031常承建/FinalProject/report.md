@@ -2,7 +2,7 @@
 
 ## GitHub 仓库地址
 
-GitHub 仓库地址：https://github.com/HDaoDA/MobileSoftwareDevelopment.git/2025003031-FinalProject
+GitHub 仓库地址：https://github.com/HDaoDA/CampusAssistant
 
 （请替换为你的实际 Public 仓库地址）
 
